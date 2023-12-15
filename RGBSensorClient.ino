@@ -143,6 +143,7 @@ void closeClient() {
 void loop() {
   // oldLoop();
   reconnectWifi();
+  // needs to be "xxxx", x= 0 or 1
   adcInput = readAnalogInput();
   if (adcInput == "0000") {
     Serial.println("Halt!");
@@ -172,52 +173,6 @@ void reconnectWifi() {
     status = WiFi.begin(ssid, pass);
     delay(1000);
   }
-}
-
-void oldLoop() {
-  //read adc signal(currently mocked by user input)
-  String newSignal = readMockADC();
-  Serial.print("new input is \"");
-  Serial.print(newSignal);
-  Serial.println("\"");
-  Serial.print("current status is \"");
-  Serial.print(adcInput);
-  Serial.println("\"");
-  if (adcInput != newSignal && newSignal != "") {
-    Serial.print("Input changed: ");
-    Serial.println(newSignal);
-    adcInput = newSignal;
-  }
-  if (adcInput == "0") {
-    Serial.println("Halt!");
-    if (client.connected()) {
-      closeClient();
-    }
-    delay(1000);
-  } else {
-    if (client.connected()) {
-      Serial.println("Read sensors data");
-      String portsData = readPortsData();
-      sendData(portsData);
-    } else {
-      Serial.println("disconnected");
-      beginClient();
-    }
-  }
-}
-
-//read string from input, only accepting 4 digit with at least one 1
-//otherwise return ''
-String readMockADC() {
-  if (Serial.available() > 0) {
-    String input = Serial.readStringUntil('\n');
-    if (input.length() == 4 && input.indexOf('1') > -1) {
-      return input;
-    } else {
-      return "0";
-    }
-  }
-  return "";
 }
 
 String readAnalogInput() {
@@ -254,6 +209,7 @@ String readPortsData() {
   String jsonData = "{\"Sens\":[";
   for (uint8_t port = 0; port < 8; port++) {
     I2CMultiplexer.selectPort(port);
+    // delay to wait for port selected
     delay(100);
     String sensorData = readSensor(port);
     Serial.println(sensorData);
@@ -276,9 +232,12 @@ String readPortsData() {
 String readSensor(uint8_t port) {
   String jsonStr;
   if (TCS3430.begin()) {
+    ///0: 1x gain, 1: 4x gain, 2: 16x, 3: 64x
     TCS3430.setALSGain(0);
-    TCS3430.setIntegrationTime(0x40);   // default 0x23 -> 0x23 * 2.78ms = 100.08ms
-    delay(250);   // delay value needs to be larger than integration time
+    // Integration Time calculation: 0x40 * 2.78ms = 177.92ms
+    TCS3430.setIntegrationTime(0x40);   
+    // delay value needs to be larger than integration time
+    delay(250);   
     uint16_t XData = TCS3430.getXData();
     uint16_t YData = TCS3430.getYData();
     uint16_t ZData = TCS3430.getZData();
